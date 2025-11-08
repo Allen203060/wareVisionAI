@@ -9,11 +9,37 @@ https://docs.djangoproject.com/en/5.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
-
+import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
+ 
+
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load .env if it exists
+dotenv_path = BASE_DIR / ".env"
+if dotenv_path.exists():
+    load_dotenv(dotenv_path)
+
+DEBUG = os.getenv("DEBUG", "False") == "True"
+SECRET_KEY = os.getenv("SECRET_KEY", "fallback-secret")
+
+# Example usage
+ALERT_EMAIL_TO = os.getenv("ALERT_EMAIL_TO", None)
+GMAIL_CREDENTIALS_PATH = os.getenv("GMAIL_CREDENTIALS_PATH", str(BASE_DIR / "credentials.json"))
+GMAIL_TOKEN_PATH = os.getenv("GMAIL_TOKEN_PATH", str(BASE_DIR / "token.json"))
+
+# Optionally expose them for other modules:
+GMAIL_CONFIG = {
+    "CREDENTIALS_PATH": GMAIL_CREDENTIALS_PATH,
+    "TOKEN_PATH": GMAIL_TOKEN_PATH,
+    "FROM": os.getenv("GMAIL_FROM", "me"),
+    "TO": ALERT_EMAIL_TO,
+    "MIN_QTY": int(os.getenv("ALERT_MIN_QUANTITY", "50")),
+    "CHECK_INTERVAL": int(os.getenv("ALERT_CHECK_INTERVAL", "600")),
+}
 
 
 # Quick-start development settings - unsuitable for production
@@ -25,7 +51,7 @@ SECRET_KEY = 'django-insecure-#0zmmvb1!tsxoixqmj22x78uvpizb!mu--1osxe%=%mum!#fvc
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["*"]
 
 
 # Application definition
@@ -40,6 +66,12 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'inventory_api',
+    'django_crontab',
+]
+
+CRONJOBS = [
+    # run every 10 minutes; use full path to manage.py to be safe
+    ("*/5 * * * *", "django.core.management.call_command", ["send_inventory_alerts"])
 ]
 
 MIDDLEWARE = [

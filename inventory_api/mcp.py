@@ -26,7 +26,7 @@ def get_llm_reasoning(prompt: str) -> dict:
     # The payload needs to be in the OpenAI chat completions format
 
     payload = {
-        "model": "mistral",
+        "model": "phi3-finetuned-inventoryV2",
         "prompt": prompt,
         "stream": False,
         "format": "json"
@@ -45,6 +45,13 @@ def get_llm_reasoning(prompt: str) -> dict:
     
     try:
         response = requests.post(ollama_api_url, json=payload, timeout=180)
+        # --- DEBUGGING STEP: Print the raw response text ---
+        print("-" * 20)
+        print("Raw Ollama Response Status Code:", response.status_code)
+        print("Raw Ollama Response Text:")
+        print(response.text) # <-- THIS IS THE KEY DEBUG LINE
+        print("-" * 20)
+        # --- END DEBUGGING STEP ---
          
         if response.status_code != 200:
             print(f"Ollama returned an error: {response.status_code}")
@@ -55,6 +62,12 @@ def get_llm_reasoning(prompt: str) -> dict:
         response_data = response.json()
         
         reasoned_action_string = response_data.get("response", "{}")
+
+        # --- DEBUGGING STEP 2: Print the string *before* parsing ---
+        print("String to be parsed as JSON:", reasoned_action_string)
+        print("-" * 20)
+        # --- END DEBUGGING STEP 2 ---
+        
         reasoned_action_json = json.loads(reasoned_action_string)
         
         return reasoned_action_json

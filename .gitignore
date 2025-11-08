@@ -1,0 +1,7 @@
+# .gitignore
+.env
+credentials.json
+token.json
+alert_log.txt
+__pycache__/
+vent/

@@ -17,12 +17,13 @@
         .table-header-sortable:hover { background-color: #e5e7eb; }
         .spinner { border: 4px solid rgba(0, 0, 0, 0.1); width: 24px; height: 24px; border-radius: 50%; border-left-color: #4f46e5; animation: spin 1s ease infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .form-input { margin-top: 0.25rem; display: block; width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #d1d5db; border-radius: 0.375rem; box-shadow: sm; transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out; }
+        .form-input:focus { outline: none; border-color: #4f46e5; box-shadow: 0 0 0 2px #c7d2fe; }
     </style>
 </head>
 <body class="antialiased text-gray-800">
 
     <div class="min-h-screen flex flex-col">
-        <!-- Header -->
         <header class="bg-white shadow-md sticky top-0 z-20">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="flex items-center justify-between h-16">
@@ -39,13 +40,11 @@
             </div>
         </header>
 
-        <!-- Main Content -->
         <main class="flex-grow container mx-auto p-4 sm:p-6 lg:p-8">
             
-            <!-- Natural Language Query Box -->
             <div class="card p-6 mb-8">
                 <h2 class="text-xl font-semibold text-gray-800 mb-2">Talk to Your Inventory</h2>
-                <p class="text-sm text-gray-500 mb-4">Use natural language to make changes. Try "delete the sourdough loaf" or "change the price of Chicken Breast to 13.50".</p>
+                <p class="text-sm text-gray-500 mb-4">Try "add 5 loaves of sourdough bread at 8.99 each, expiring in 2 weeks".</p>
                 <form id="llm-query-form" class="flex items-center space-x-3">
                     <input type="text" id="llm-query-input" placeholder="Enter your command..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     <button type="submit" id="llm-query-submit" class="bg-indigo-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors flex items-center justify-center w-32">
@@ -55,15 +54,19 @@
                 </form>
                 <p id="status-message" class="text-sm text-gray-600 mt-2 h-5"></p>
             </div>
-            <!-- END Natural Language Query Box -->
-
-            <!-- Summary Cards -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 <div class="card p-6 flex items-center">
                     <div class="bg-blue-100 p-4 rounded-full"><i class="fas fa-box-open fa-2x text-blue-500"></i></div>
                     <div class="ml-4">
-                        <p class="text-sm font-medium text-gray-500">Total Products</p>
+                        <p class="text-sm font-medium text-gray-500">Unique Products</p>
                         <p id="total-products" class="text-2xl font-bold text-gray-900">0</p>
+                    </div>
+                </div>
+                <div class="card p-6 flex items-center">
+                    <div class="bg-purple-100 p-4 rounded-full"><i class="fas fa-boxes fa-2x text-purple-500"></i></div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-500">Total Stock</p>
+                        <p id="total-stock" class="text-2xl font-bold text-gray-900">0</p>
                     </div>
                 </div>
                 <div class="card p-6 flex items-center">
@@ -82,8 +85,7 @@
                 </div>
             </div>
 
-            <!-- Products Table -->
-            <div class="lg:col-span-2 card p-0 overflow-hidden">
+            <div class="card p-0 overflow-hidden">
                  <div class="p-6">
                     <h2 class="text-xl font-semibold text-gray-800 mb-2">All Products</h2>
                     <input type="text" id="search-input" placeholder="Filter products by name..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 mt-4">
@@ -94,6 +96,7 @@
                             <tr>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider table-header-sortable" data-sort="product_name">Product Name</th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider table-header-sortable" data-sort="price">Price</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider table-header-sortable" data-sort="quantity">Quantity</th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider table-header-sortable" data-sort="expiry_date">Expiry Date</th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -106,26 +109,44 @@
         </main>
     </div>
 
-    <!-- Confirmation Modal (for LLM and Delete) -->
     <div id="confirmation-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 h-full w-full z-50 flex items-center justify-center">
-        <div class="relative mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
-            <div class="mt-3 text-center">
-                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-indigo-100">
-                    <i id="modal-icon" class="fas fa-robot fa-lg text-indigo-600"></i>
+        <div class="relative mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white">
+            <form id="confirmation-form">
+                <div class="text-center">
+                    <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-indigo-100">
+                        <i id="modal-icon" class="fas fa-robot fa-lg text-indigo-600"></i>
+                    </div>
+                    <h3 id="modal-title" class="text-lg leading-6 font-medium text-gray-900 mt-2">Confirm AI Action</h3>
+                    <p id="modal-action-description" class="text-sm text-gray-500 mt-2 px-4"></p>
                 </div>
-                <h3 id="modal-title" class="text-lg leading-6 font-medium text-gray-900 mt-2">Confirm Action</h3>
-                <div class="mt-2 px-7 py-3">
-                    <p id="modal-action-description" class="text-sm text-gray-500"></p>
+                <div id="editable-fields" class="mt-4 space-y-4 text-left">
+                    <div>
+                        <label for="confirm_product_name" class="block text-sm font-medium text-gray-700">Product Name</label>
+                        <input type="text" name="product_name" id="confirm_product_name" required class="form-input">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label for="confirm_price" class="block text-sm font-medium text-gray-700">Price</label>
+                            <input type="number" name="price" id="confirm_price" step="0.01" required class="form-input">
+                        </div>
+                        <div>
+                            <label for="confirm_quantity" class="block text-sm font-medium text-gray-700">Quantity</label>
+                            <input type="number" name="quantity" id="confirm_quantity" step="1" required class="form-input">
+                        </div>
+                    </div>
+                    <div>
+                        <label for="confirm_expiry_date" class="block text-sm font-medium text-gray-700">Expiry Date</label>
+                        <input type="date" name="expiry_date" id="confirm_expiry_date" required class="form-input">
+                    </div>
                 </div>
-                <div class="items-center px-4 py-3 space-y-2 sm:space-y-0 sm:flex sm:space-x-2 sm:flex-row-reverse">
-                    <button id="modal-confirm-button" class="w-full sm:w-auto inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Confirm</button>
-                    <button id="modal-cancel-button" class="w-full sm:w-auto mt-3 sm:mt-0 inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">Cancel</button>
+                <div class="items-center px-4 py-3 mt-4 sm:flex sm:flex-row-reverse sm:px-0">
+                    <button id="modal-confirm-button" type="submit" class="w-full sm:w-auto inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Confirm</button>
+                    <button id="modal-cancel-button" type="button" class="w-full sm:w-auto mt-3 sm:mt-0 inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 mr-2">Cancel</button>
                 </div>
-            </div>
+            </form>
         </div>
     </div>
 
-    <!-- Add/Edit Product Modal -->
     <div id="product-form-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 h-full w-full z-50 flex items-center justify-center">
         <div class="relative mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white">
              <form id="product-form">
@@ -134,15 +155,21 @@
                     <input type="hidden" id="product-id">
                     <div>
                         <label for="product_name" class="block text-sm font-medium text-gray-700">Product Name</label>
-                        <input type="text" name="product_name" id="product_name" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        <input type="text" name="product_name" id="product_name" required class="form-input">
                     </div>
-                     <div>
-                        <label for="price" class="block text-sm font-medium text-gray-700">Price</label>
-                        <input type="number" name="price" id="price" step="0.01" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label for="price" class="block text-sm font-medium text-gray-700">Price</label>
+                            <input type="number" name="price" id="price" step="0.01" required class="form-input">
+                        </div>
+                        <div>
+                            <label for="quantity" class="block text-sm font-medium text-gray-700">Quantity</label>
+                            <input type="number" name="quantity" id="quantity" step="1" required class="form-input" value="1">
+                        </div>
                     </div>
                      <div>
                         <label for="expiry_date" class="block text-sm font-medium text-gray-700">Expiry Date</label>
-                        <input type="date" name="expiry_date" id="expiry_date" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        <input type="date" name="expiry_date" id="expiry_date" required class="form-input">
                     </div>
                 </div>
                  <div class="items-center px-4 py-3 mt-4 sm:flex sm:flex-row-reverse sm:px-0">
@@ -150,6 +177,23 @@
                     <button type="button" id="product-form-cancel-btn" class="w-full sm:w-auto mt-3 sm:mt-0 inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 mr-2">Cancel</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <div id="answer-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 h-full w-full z-50 flex items-center justify-center">
+        <div class="relative mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
+            <div class="mt-3 text-center">
+                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
+                    <i class="fas fa-comment-dots fa-lg text-blue-600"></i>
+                </div>
+                <h3 class="text-lg leading-6 font-medium text-gray-900 mt-2">AI Response</h3>
+                <div class="mt-2 px-7 py-3">
+                    <div id="answer-modal-content" class="text-sm text-gray-600 text-left"></div>
+                </div>
+                <div class="items-center px-4 py-3">
+                    <button id="answer-modal-close-btn" class="w-full sm:w-auto inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">OK</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -179,18 +223,23 @@
             const searchInput = document.getElementById('search-input');
             const statusMessage = document.getElementById('status-message');
             
-            // LLM Query Elements
             const llmQueryForm = document.getElementById('llm-query-form');
             const llmQueryInput = document.getElementById('llm-query-input');
             const llmQuerySubmit = document.getElementById('llm-query-submit');
             
             // Confirmation Modal Elements
             const confirmationModal = document.getElementById('confirmation-modal');
+            const confirmationForm = document.getElementById('confirmation-form');
             const modalTitle = document.getElementById('modal-title');
             const modalIcon = document.getElementById('modal-icon');
             const modalDescription = document.getElementById('modal-action-description');
-            const modalConfirmBtn = document.getElementById('modal-confirm-button');
             const modalCancelBtn = document.getElementById('modal-cancel-button');
+            const editableFieldsContainer = document.getElementById('editable-fields');
+
+            // Answer Modal Elements
+            const answerModal = document.getElementById('answer-modal');
+            const answerModalContent = document.getElementById('answer-modal-content');
+            const answerModalCloseBtn = document.getElementById('answer-modal-close-btn');
 
             // Product Form Modal Elements
             const addProductBtn = document.getElementById('add-product-btn');
@@ -201,7 +250,7 @@
 
             let allProducts = [];
             let currentSort = { key: 'expiry_date', order: 'asc' };
-            let actionToConfirm = null; // Stores callback for confirmation modal
+            let proposedAction = null; // Stores the complete action object proposed by the AI
 
             // --- DATA FETCHING & RENDERING ---
             async function fetchProducts() {
@@ -212,14 +261,14 @@
                     updateDashboard();
                 } catch (error) {
                     console.error("Failed to fetch products:", error);
-                    tableBody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-gray-500">Error loading data. Is the Django server running?</td></tr>`;
+                    tableBody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-gray-500">Error loading data. Is the Django server running?</td></tr>`;
                 }
             }
             
             function renderTable(productData) {
                 tableBody.innerHTML = '';
                 if (productData.length === 0) {
-                    tableBody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-gray-500">No products found.</td></tr>`;
+                    tableBody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-gray-500">No products found.</td></tr>`;
                     return;
                 }
                 productData.forEach(product => {
@@ -229,6 +278,7 @@
                         <tr class="hover:bg-gray-50" data-product-id="${product.id}">
                             <td class="px-6 py-4 whitespace-nowrap"><div class="text-sm font-medium text-gray-900">${product.product_name}</div></td>
                             <td class="px-6 py-4 whitespace-nowrap"><div class="text-sm text-gray-700">$${parseFloat(product.price).toFixed(2)}</div></td>
+                            <td class="px-6 py-4 whitespace-nowrap"><div class="text-sm text-gray-700">${product.quantity}</div></td>
                             <td class="px-6 py-4 whitespace-nowrap"><div class="text-sm text-gray-700">${new Date(product.expiry_date).toLocaleDateString('en-CA', { timeZone: 'UTC' })}</div></td>
                             <td class="px-6 py-4 whitespace-nowrap"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-${status.color}-100 text-${status.color}-800"><i class="fas ${status.icon} mr-1 mt-0.5"></i>${status.text}</span></td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
@@ -248,13 +298,10 @@
                 }
                 productsToDisplay.sort((a, b) => {
                     let valA = a[currentSort.key], valB = b[currentSort.key];
-                    if (currentSort.key === 'expiry_date') {
-                        valA = new Date(valA);
-                        valB = new Date(valB);
-                    }
-                    if (currentSort.key === 'price') {
-                        valA = parseFloat(valA);
-                        valB = parseFloat(valB);
+                    if (['expiry_date'].includes(currentSort.key)) {
+                        valA = new Date(valA); valB = new Date(valB);
+                    } else if (['price', 'quantity'].includes(currentSort.key)) {
+                        valA = parseFloat(valA); valB = parseFloat(valB);
                     }
                     if (valA < valB) return currentSort.order === 'asc' ? -1 : 1;
                     if (valA > valB) return currentSort.order === 'asc' ? 1 : -1;
@@ -262,13 +309,15 @@
                 });
                 renderTable(productsToDisplay);
 
-                const totalValue = allProducts.reduce((sum, p) => sum + parseFloat(p.price), 0);
+                const totalValue = allProducts.reduce((sum, p) => sum + (parseFloat(p.price) * p.quantity), 0);
+                const totalStock = allProducts.reduce((sum, p) => sum + p.quantity, 0);
                 const expiringSoonCount = allProducts.filter(p => {
                     const days = getDaysUntilExpiry(p.expiry_date);
                     return days >= 0 && days <= 30;
                 }).length;
 
                 document.getElementById('total-products').textContent = allProducts.length;
+                document.getElementById('total-stock').textContent = totalStock;
                 document.getElementById('total-value').textContent = `$${totalValue.toFixed(2)}`;
                 document.getElementById('expiring-soon-count').textContent = expiringSoonCount;
             }
@@ -300,73 +349,104 @@
                 llmQuerySubmit.disabled = isLoading;
             }
 
-            function openConfirmationModal({ title, description, iconClass, onConfirm }) {
-                modalTitle.textContent = title;
+            function openConfirmationModal(actionData) {
+                proposedAction = actionData; // Store the full proposed action
+                const { action, description, data } = actionData;
+                
                 modalDescription.textContent = description;
-                modalIcon.className = `fas ${iconClass} fa-lg text-indigo-600`;
-                if(iconClass.includes('trash')){
-                    modalIcon.className = `fas ${iconClass} fa-lg text-red-600`;
+                
+                if (action === "DELETE" || action === "BULK_DELETE_EXPIRED") {
+                    modalTitle.textContent = "Confirm Deletion";
+                    modalIcon.className = 'fas fa-trash-alt fa-lg text-red-600';
+                    editableFieldsContainer.classList.add('hidden');
+                } else { // CREATE or UPDATE
+                    modalTitle.textContent = "Confirm AI Action";
+                    modalIcon.className = 'fas fa-robot fa-lg text-indigo-600';
+                    editableFieldsContainer.classList.remove('hidden');
+
+                    // Populate the form with data from the AI
+                    confirmationForm.querySelector('#confirm_product_name').value = data.product_name || '';
+                    confirmationForm.querySelector('#confirm_price').value = data.price || '';
+                    confirmationForm.querySelector('#confirm_quantity').value = data.quantity || 1;
+                    confirmationForm.querySelector('#confirm_expiry_date').value = data.expiry_date || '';
                 }
-                actionToConfirm = onConfirm;
+                
                 confirmationModal.classList.remove('hidden');
             }
 
+            function showAnswerModal(answerText) {
+                let formattedHtml = `<p>${answerText}</p>`; // Default for simple answers
+
+                // Regex to find a lead-in (like "namely", "are:"), then a list of 'quoted items'
+                const listRegex = /^(.*?(?:namely|are:|is:|include:|includes:))\s*(.*)$/i;
+                const match = answerText.match(listRegex);
+                
+                // Check if we have a match and the list part contains single quotes
+                if (match && match[2] && match[2].includes("'")) {
+                    const intro = match[1];     // e.g., "The products are:"
+                    const listPart = match[2];  // e.g., "'Item 1', 'Item 2'."
+
+                    // Extract all single-quoted items
+                    const items = listPart.match(/'(.*?)'/g);
+                    
+                    if (items && items.length > 0) {
+                        // Build the HTML with a proper list
+                        formattedHtml = `<p>${intro}</p><ul class="list-disc list-inside mt-2">`;
+                        items.forEach(item => {
+                            const cleanItem = item.replace(/'/g, ''); // Remove quotes
+                            formattedHtml += `<li>${cleanItem}</li>`;
+                        });
+                        formattedHtml += '</ul>';
+                    }
+            }
+
+    // Use .innerHTML to render the potentially formatted HTML
+    answerModalContent.innerHTML = formattedHtml;
+    answerModal.classList.remove('hidden');
+}
+
             // --- API CALLS (CRUD) ---
-            async function handleAddProduct(productData) {
+            async function executeAction(actionData) {
                 try {
-                    const response = await fetch('/api/products/', {
+                    const execResponse = await fetch('/api/execute-action/', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
-                        body: JSON.stringify(productData),
+                        body: JSON.stringify(actionData)
                     });
-                    if (!response.ok) {
-                        const errorData = await response.json();
-                        throw new Error(JSON.stringify(errorData));
-                    }
-                    showStatusMessage('Product added successfully!');
-                    productFormModal.classList.add('hidden');
+                    const execResult = await execResponse.json();
+                    if (!execResponse.ok) throw new Error(execResult.error || 'Failed to execute action.');
+                    showStatusMessage(execResult.message || 'Action completed successfully!');
+                    llmQueryInput.value = '';
                     await fetchProducts();
                 } catch (error) {
-                    console.error('Add Product Error:', error);
-                    showStatusMessage(`Error adding product: ${error.message}`, true);
-                }
-            }
-
-            async function handleEditProduct(productId, productData) {
-                 try {
-                    const response = await fetch(`/api/products/${productId}/`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
-                        body: JSON.stringify(productData),
-                    });
-                    if (!response.ok) {
-                        const errorData = await response.json();
-                        throw new Error(JSON.stringify(errorData));
-                    }
-                    showStatusMessage('Product updated successfully!');
-                    productFormModal.classList.add('hidden');
-                    await fetchProducts();
-                } catch (error) {
-                    console.error('Edit Product Error:', error);
-                    showStatusMessage(`Error updating product: ${error.message}`, true);
-                }
-            }
-
-            async function handleDeleteProduct(productId) {
-                 try {
-                    const response = await fetch(`/api/products/${productId}/`, {
-                        method: 'DELETE',
-                        headers: { 'X-CSRFToken': csrftoken },
-                    });
-                    if (!response.ok) throw new Error('Failed to delete product.');
-                    showStatusMessage('Product deleted successfully!');
-                    await fetchProducts();
-                } catch (error) {
-                    console.error('Delete Product Error:', error);
                     showStatusMessage(`Error: ${error.message}`, true);
                 }
             }
+            
+            async function handleAddOrEditProduct(productId, productData) {
+                const isEdit = !!productId;
+                const url = isEdit ? `/api/products/${productId}/` : '/api/products/';
+                const method = isEdit ? 'PUT' : 'POST';
 
+                try {
+                    const response = await fetch(url, {
+                        method: method,
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+                        body: JSON.stringify(productData),
+                    });
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(JSON.stringify(errorData));
+                    }
+                    showStatusMessage(`Product ${isEdit ? 'updated' : 'added'} successfully!`);
+                    productFormModal.classList.add('hidden');
+                    await fetchProducts();
+                } catch (error) {
+                    console.error('Add/Edit Product Error:', error);
+                    showStatusMessage(`Error: ${error.message}`, true);
+                }
+            }
+            
             // --- EVENT LISTENERS ---
             searchInput.addEventListener('input', updateDashboard);
             
@@ -401,29 +481,11 @@
                     const result = await response.json();
                     if (!response.ok) throw new Error(result.error || 'An unknown error occurred.');
                     
-                    if (result.action && result.product_id && result.description) {
-                        openConfirmationModal({
-                            title: 'Confirm AI Action',
-                            description: result.description,
-                            iconClass: 'fa-robot',
-                            onConfirm: async () => {
-                                try {
-                                    const execResponse = await fetch('/api/execute-action/', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
-                                        body: JSON.stringify(result)
-                                    });
-                                    const execResult = await execResponse.json();
-                                    if (!execResponse.ok) throw new Error(execResult.error || 'Failed to execute action.');
-                                    showStatusMessage(execResult.message || 'Action completed successfully!');
-                                    llmQueryInput.value = '';
-                                    await fetchProducts();
-                                } catch (error) {
-                                    showStatusMessage(`Error: ${error.message}`, true);
-                                }
-                            }
-                        });
+                    if (result.action && result.description) {
+                        openConfirmationModal(result);
                         statusMessage.textContent = '';
+                    } else if (result.action === 'QUERY_RESPONSE' && result.answer) {
+                        showAnswerModal(result.answer);
                     } else {
                         showStatusMessage("I couldn't determine a clear action from your command.", true);
                     }
@@ -449,33 +511,48 @@
                     productForm.querySelector('#product-id').value = product.id;
                     productForm.querySelector('#product_name').value = product.product_name;
                     productForm.querySelector('#price').value = parseFloat(product.price);
+                    productForm.querySelector('#quantity').value = product.quantity;
                     productForm.querySelector('#expiry_date').value = product.expiry_date;
                     productFormModal.classList.remove('hidden');
                 }
 
                 if (target.classList.contains('delete-btn')) {
-                     openConfirmationModal({
-                        title: 'Confirm Deletion',
-                        description: `Are you sure you want to delete the product '${product.product_name}'? This action cannot be undone.`,
-                        iconClass: 'fa-trash-alt',
-                        onConfirm: () => handleDeleteProduct(productId)
+                    openConfirmationModal({
+                        action: 'DELETE',
+                        product_id: productId,
+                        description: `Are you sure you want to delete '${product.product_name}'? This action cannot be undone.`
                     });
                 }
             });
 
-            // Confirmation Modal Buttons
+            // Confirmation Modal Form Submit
+            confirmationForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                if (!proposedAction) return;
+
+                // If the action is CREATE or UPDATE, grab the (potentially edited) data from the form
+                if (proposedAction.action === 'CREATE' || proposedAction.action === 'UPDATE') {
+                    const formData = new FormData(e.target);
+                    proposedAction.data = {
+                        product_name: formData.get('product_name'),
+                        price: formData.get('price'),
+                        quantity: formData.get('quantity'),
+                        expiry_date: formData.get('expiry_date'),
+                    };
+                }
+                
+                confirmationModal.classList.add('hidden');
+                await executeAction(proposedAction);
+                proposedAction = null;
+            });
+            
             modalCancelBtn.addEventListener('click', () => {
                 confirmationModal.classList.add('hidden');
-                actionToConfirm = null;
+                proposedAction = null;
             });
 
-            modalConfirmBtn.addEventListener('click', async () => {
-                if (actionToConfirm) {
-                    confirmationModal.classList.add('hidden');
-                    await actionToConfirm();
-                    actionToConfirm = null;
-                }
-            });
+            // Answer Modal Close Button
+            answerModalCloseBtn.addEventListener('click', () => answerModal.classList.add('hidden'));
 
             // Product Form Modal (Add/Edit)
             addProductBtn.addEventListener('click', () => {
@@ -483,6 +560,7 @@
                 productForm.dataset.mode = 'add';
                 productForm.reset();
                 productForm.querySelector('#product-id').value = '';
+                productForm.querySelector('#quantity').value = '1';
                 productFormModal.classList.remove('hidden');
             });
 
@@ -496,18 +574,47 @@
                 const productData = {
                     product_name: formData.get('product_name'),
                     price: formData.get('price'),
+                    quantity: formData.get('quantity'),
                     expiry_date: formData.get('expiry_date'),
                 };
                 
                 const mode = e.target.dataset.mode;
                 const productId = e.target.querySelector('#product-id').value;
 
-                if (mode === 'add') {
-                    await handleAddProduct(productData);
-                } else if (mode === 'edit') {
-                    await handleEditProduct(productId, productData);
-                }
+                await handleAddOrEditProduct(productId, productData);
             });
+
+            /**
+             * Polls the server every 3 seconds to check for new items in the
+             * scanned product queue (the HITL queue).
+             */
+            async function pollForScannedProducts() {
+                try {
+                    const response = await fetch('/api/product/check-scanned/');
+
+                    if (response.status === 200) {
+                        // We got an item!
+                        const proposal = await response.json();
+                        
+                        // Use your existing modal function to show the HITL item
+                        openConfirmationModal(proposal);
+
+                        // Note: We don't need to call pollForScannedProducts() again
+                        // because setInterval will handle the next check.
+                    }
+                    // If status is 204 (No Content), do nothing and wait for the next interval.
+
+                } catch (error) {
+                    console.error("Polling error:", error);
+                    // Stop polling if there's a serious error
+                    clearInterval(pollingInterval);
+                }
+            }
+
+            // Start polling every 3 seconds (3000 milliseconds)
+            const pollingInterval = setInterval(pollForScannedProducts, 3000);
+
+            // --- END NEW POLLING LOGIC ---
 
 
             // --- INITIAL LOAD ---
