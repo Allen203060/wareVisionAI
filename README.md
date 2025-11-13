@@ -26,15 +26,15 @@ It also features a **Human-in-the-Loop (HITL) scanner**, allowing you to scan pr
 * **Natural Language Commands:** Manage your entire inventory through a single chat bar. Try "add 10 loaves of bread at 150rs each, expiring in 2 weeks," "delete all expired items," or "change the price of apples to 60."
 * **AI "Propose & Confirm" Workflow:** The AI proposes a database action (like a `CREATE` or `UPDATE`), which you must review and confirm in a modal. This prevents AI hallucinations from corrupting your data.
 * **Telegram HITL Scanner:** A Telegram bot uses the **Google Gemini** model (via LangChain) to read product names and expiry dates from photos. Scanned items are automatically added to a queue on the dashboard for you to verify.
+* **Automated Email Alerts:** A background cron job automatically scans the inventory for expired or low-stock items and sends a daily HTML alert email via the Gmail API.
 * **Real-time Dashboard:** A clean, responsive UI built with Tailwind CSS that shows key stats like total products, stock value, and items expiring soon.
-* **Robust Backend:** Built on Django and Django Rest Framework, providing a powerful and secure API.
 * **Local-First AI:** The core query feature runs on a locally-hosted, fine-tuned `Phi-3-mini` model served via **Ollama**, ensuring your data stays private and the service runs with no API costs.
 
 ---
 
 ## ⚙️ How It Works (System Architecture)
 
-Ventura operates on two primary data flows:
+Ventura operates on three primary data flows:
 
 ### 1. Natural Language Query (from the Web UI)
 
@@ -62,6 +62,16 @@ This is the Human-in-the-Loop (HITL) flow for adding new items by scanning them.
 7.  **Backend ➡️ UI:** As soon as the `CheckScannedProductView` finds an item in the queue, it pulls it, builds a full "proposal" (with a description), and sends it to the UI.
 8.  **UI (HITL):** The UI receives the proposal and automatically opens the **Confirmation Modal**. The user can then fill in the missing `price`/`quantity` and click **Confirm** to add the new item.
 
+### 3. Automated Inventory Alerts (Background Cron Job)
+
+This flow runs entirely on the server to monitor inventory.
+
+1.  **Cron Scheduler ➡️ Server:** A system-level cron job (e.g., `0 9 * * *` for 9:00 AM daily) executes the `run_inventory_alerts.sh` script.
+2.  **Script ➡️ Django:** The script activates the Python virtual environment and runs the Django management command `python manage.py sendInventoryAlerts`.
+3.  **Django (Logic):** The command queries the database for any products that are expired (`expiry_date < today`) or low-stock (`quantity < 50`).
+4.  **Django ➡️ Google API:** If alerts are found, the `gmail_utils.py` module authenticates with the Gmail API using a `token.json` (OAuth 2.0).
+5.  **Google API ➡️ User:** The script sends a formatted HTML email to the admin with a summary of all items needing attention.
+
 ---
 
 ## 🚀 Technology Stack
@@ -70,9 +80,11 @@ This is the Human-in-the-Loop (HITL) flow for adding new items by scanning them.
 * **Frontend:** Vanilla JavaScript (ES6+), Tailwind CSS
 * **AI (Core Query):** Ollama, `Phi-3-mini` (Fine-tuned with QLoRA)
 * **AI (Image Scanning):** Google Gemini (via LangChain for structured output)
+* **Email Alerts:** Gmail API (via `google-api-python-client`)
 * **Bot:** `python-telegram-bot`
 * **Database:** SQLite3 (default, easily swappable with PostgreSQL)
 * **API Client (Bot):** `httpx`
+* **Task Scheduling:** System Cron
 
 ---
 
@@ -80,7 +92,7 @@ This is the Human-in-the-Loop (HITL) flow for adding new items by scanning them.
 
 You need to set up three main components: the **Django Backend**, the **Ollama AI Server**, and the **Telegram Bot**.
 
-### 1. Django Backend (Ventura Project)
+### 1. Django Backend (WareVision Project)
 
 1.  **Clone the repository:**
     ```bash
@@ -99,18 +111,54 @@ You need to set up three main components: the **Django Backend**, the **Ollama A
     pip install -r requirements.txt
     ```
 
-4.  **Run database migrations:**
+4.  **Create your Environment File:**
+    This project uses a `.env` file to manage all secrets. Copy the example file and then edit it.
+    ```bash
+    cp .env.example .env
+    nano .env
+    ```
+    Now, fill in the following values in your `.env` file:
+    ```dotenv
+    # --- Django Settings ---
+    # Generate a new key: [https://djecrety.ir/](https://djecrety.ir/)
+    SECRET_KEY="your-django-secret-key"
+    DEBUG="True"
+
+    # --- Gmail Alert Settings ---
+    # This is the email address your alerts will be sent TO.
+    ALERT_EMAIL_TO="your-personal-email@gmail.com"
+    # This is the email your bot will send FROM. Must be the one you authorize in step 5.
+    ALERT_EMAIL_FROM="your-bot-email@gmail.com"
+
+    # --- Telegram Bot & Gemini API ---
+    TELEGRAM_BOT_TOKEN="your-token-from-botfather"
+    GEMINI_API_KEY="your-google-ai-studio-api-key"
+    ```
+
+5.  **Authorize Google API (for Email Alerts):**
+    * Go to the [Google Cloud Console](https://console.cloud.google.com/).
+    * Create a new project.
+    * Enable the **Gmail API**.
+    * Go to "Credentials" -> "Create Credentials" -> "OAuth client ID".
+    * Select "Desktop application".
+    * Download the JSON file, rename it to `credentials.json`, and place it in the project root (where `manage.py` is).
+    * **Run the auth flow once manually:** This will open a browser, ask you to log in, and generate a `token.json` file. This token is what the cron job will use later.
+    ```bash
+    python manage.py sendInventoryAlerts --dry-run
+    ```
+
+6.  **Run database migrations:**
     ```bash
     python manage.py migrate
     ```
 
-5.  **(Optional) Seed the database:**
+7.  **(Optional) Seed the database:**
     You can use the `seed_products` command to add initial sample data.
     ```bash
     python manage.py seed_products
     ```
 
-6.  **Run the development server:**
+8.  **Run the development server:**
     ```bash
     python manage.py runserver
     ```
@@ -144,27 +192,47 @@ You need to set up three main components: the **Django Backend**, the **Ollama A
 
 ### 3. Telegram Bot & HITL Scanner
 
-1.  **Set Environment Variables:** Your bot script (`bot.py`) needs two secret keys.
-    ```bash
-    export TELEGRAM_BOT_TOKEN="your-token-from-botfather"
-    export GEMINI_API_KEY="your-google-ai-studio-api-key"
-    ```
-
-2.  **Start ngrok:** Your bot (running on your computer) needs a public URL to send data to your Django server (also on your computer). `ngrok` creates this tunnel.
+1.  **Start ngrok:** Your bot (running on your computer) needs a public URL to send data to your Django server (also on your computer). `ngrok` creates this tunnel.
     ```bash
     ngrok http 8000
     ```
 
-3.  **Update `bot.py`:** Copy the public "Forwarding" URL from your ngrok terminal (e.g., `https://random-name.ngrok-free.dev`) and paste it into the `DJANGO_BACKEND_URL` variable in `bot.py`.
+2.  **Update `bot.py`:** Copy the public "Forwarding" URL from your ngrok terminal (e.g., `https://random-name.ngrok-free.dev`) and paste it into the `DJANGO_BACKEND_URL` variable in `bot.py`.
     ```python
     # in bot.py
     DJANGO_BACKEND_URL = "[https://your-ngrok-url-here.ngrok-free.dev/api/product/receive/](https://your-ngrok-url-here.ngrok-free.dev/api/product/receive/)"
     ```
 
-4.  **Run the bot:**
+3.  **Run the bot:**
+    (Ensure your secrets from Step 1.4 are in your `.env` file)
     ```bash
     python bot.py
     ```
+
+### 4. (Optional) Setup Automated Alers (Cron Job)
+
+The Django server **does not** need to be running for this to work. This is a separate background task.
+
+1.  **Make the script executable:**
+    ```bash
+    chmod +x run_inventory_alerts.sh
+    ```
+
+2.  **Edit your crontab:**
+    Open your system's cron job editor:
+    ```bash
+    crontab -e
+    ```
+
+3.  **Add the cron job:**
+    Add the following line to the file. This example runs the script **every day at 9:00 AM**. Make sure to **use the absolute path** to your project directory.
+    ```crontab
+    # Run WareVision email alerts daily at 9am
+    0 9 * * * /bin/bash /home/allen/projects/ventura_web/ventura/run_inventory_alerts.sh
+    ```
+    *(To test it, you can use `*/1 * * * *` to run it every minute, but remove this after testing.)*
+
+4.  **Check logs:** The script will automatically log its output and any errors to the `logs/` directory in your project.
 
 ---
 
