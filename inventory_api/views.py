@@ -10,8 +10,11 @@ import json
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from datetime import date, timedelta
+from dateutil.relativedelta import relativedelta
 from queue import Queue
 from rest_framework.permissions import AllowAny
+ 
+ 
 
 scanned_product_queue = Queue()
 

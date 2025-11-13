@@ -1,5 +1,6 @@
 # inventory_api/gmail_utils.py
 import os
+import sys
 import base64
 import logging
 from datetime import datetime
@@ -84,9 +85,9 @@ def get_gmail_service(interactive: Optional[bool] = None):
     Return an authorized Gmail API service.
 
     Behavior:
-      - If interactive is None, it will auto-detect WSL and use console auth there.
-      - If interactive is True, it tries a local browser (run_local_server).
-      - If interactive is False, it uses manual console flow (no browser).
+    - If interactive is None, it will auto-detect WSL and use console auth there.
+    - If interactive is True, it tries a local browser (run_local_server).
+    - If interactive is False, it uses manual console flow (no browser).
     """
     # Decide interactive behavior
     if interactive is None:
@@ -110,10 +111,20 @@ def get_gmail_service(interactive: Optional[bool] = None):
                 creds.refresh(Request())
             except Exception as e:
                 logger.warning("Failed to refresh token: %s", e, exc_info=True)
+                # --- MODIFICATION ---
+                # If refresh fails, don't try to re-auth in a non-interactive session.
+                # Just fail and let the cron job log the *real* error.
+                if not sys.stdin.isatty():
+                    raise GmailAuthError(f"Token refresh failed in non-interactive session: {e}") from e
+                # --- END MODIFICATION ---
                 creds = None
 
         # If still no valid creds, perform auth flow
         if not creds:
+            if not sys.stdin.isatty():
+                    logger.error("No valid token found in non-interactive session. Cannot re-authenticate.")
+                    raise GmailAuthError("No valid token and cannot run interactive auth flow.")
+                    
             if not os.path.exists(CREDENTIALS_PATH):
                 raise FileNotFoundError(f"Credentials file not found: {CREDENTIALS_PATH}")
 

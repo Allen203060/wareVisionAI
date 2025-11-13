@@ -3,5 +3,5 @@
 credentials.json
 token.json
 alert_log.txt
-__pycache__/
-vent/
+__pycache__
+venv/

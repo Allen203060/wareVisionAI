@@ -69,10 +69,7 @@ INSTALLED_APPS = [
     'django_crontab',
 ]
 
-CRONJOBS = [
-    # run every 10 minutes; use full path to manage.py to be safe
-    ("*/5 * * * *", "django.core.management.call_command", ["send_inventory_alerts"])
-]
+
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
